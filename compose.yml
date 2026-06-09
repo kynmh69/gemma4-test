@@ -1,0 +1,33 @@
+services:
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:main
+    container_name: open-webui
+    ports:
+      - "${OPEN_WEBUI_PORT:-3000}:8080"
+    environment:
+      OLLAMA_BASE_URL: http://host.docker.internal:12434
+      WEBUI_AUTH: "${WEBUI_AUTH:-false}"
+      WEBUI_NAME: "${WEBUI_NAME:-Gemma 4 Local Chat}"
+      DEFAULT_MODELS: ${GEMMA4_MODEL:-ai/gemma4:E4B}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - open-webui:/app/backend/data
+    depends_on:
+      model-setup:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  model-setup:
+    image: docker:cli
+    container_name: gemma4-model-setup
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: >
+      sh -c "
+        docker model pull ${GEMMA4_MODEL:-ai/gemma4:E4B} &&
+        docker model list
+      "
+
+volumes:
+  open-webui:
