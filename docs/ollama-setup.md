@@ -89,6 +89,9 @@ http://host.docker.internal:11434
 
 | 変数 | デフォルト | 説明 |
 |---|---|---|
+| `POSTGRES_USER` | `openwebui` | PostgreSQL ユーザー |
+| `POSTGRES_PASSWORD` | `openwebui` | PostgreSQL パスワード |
+| `POSTGRES_DB` | `openwebui` | データベース名 |
 | `GEMMA4_MODEL` | `gemma4:e4b` | Ollama モデル名 |
 | `OLLAMA_BASE_URL` | `http://host.docker.internal:11434` | Open WebUI から見た Ollama URL |
 | `OPEN_WEBUI_PORT` | `3000` | Web UI ポート |
