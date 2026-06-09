@@ -1,7 +1,26 @@
 services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: open-webui-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-openwebui}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-openwebui}
+      POSTGRES_DB: ${POSTGRES_DB:-openwebui}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-openwebui} -d ${POSTGRES_DB:-openwebui}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
   open-webui:
     image: ghcr.io/open-webui/open-webui:main
     container_name: open-webui
+    depends_on:
+      postgres:
+        condition: service_healthy
     ports:
       - "${OPEN_WEBUI_PORT:-3000}:8080"
     environment:
@@ -9,6 +28,7 @@ services:
       WEBUI_AUTH: "${WEBUI_AUTH:-false}"
       WEBUI_NAME: "${WEBUI_NAME:-Gemma 4 Local Chat}"
       DEFAULT_MODELS: ${GEMMA4_MODEL:-gemma4:e4b}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-openwebui}:${POSTGRES_PASSWORD:-openwebui}@postgres:5432/${POSTGRES_DB:-openwebui}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
@@ -17,3 +37,4 @@ services:
 
 volumes:
   open-webui:
+  postgres-data:
