@@ -1,97 +1,125 @@
 # gemma4-test
 
-[Docker Model Runner の `ai/gemma4`](https://hub.docker.com/r/ai/gemma4) と [Open WebUI](https://github.com/open-webui/open-webui) を組み合わせた、Gemma 4 のローカル動作確認環境。
+Homebrew で入れた [Ollama](https://ollama.com) の `gemma4` と [Open WebUI](https://github.com/open-webui/open-webui) を組み合わせた、Gemma 4 のローカル動作確認環境。
 
 ## 構成
 
-| サービス | イメージ | 役割 |
+| コンポーネント | インストール | 役割 |
 |---|---|---|
-| `model-setup` | `docker:cli` | 起動時に `ai/gemma4` を pull |
-| `open-webui` | `ghcr.io/open-webui/open-webui:main` | チャット UI（ポート 3000） |
+| Ollama | `brew install ollama`（ホスト） | Gemma 4 の pull / 推論 API（`:11434`） |
+| `open-webui` | `docker compose up -d` | チャット UI（ポート 3000） |
 
-Open WebUI は Docker Model Runner の Ollama 互換 API（`http://host.docker.internal:12434`）経由でモデルに接続する。
+Ollama は **macOS ホスト上** で動かす。Metal 加速が効く。Open WebUI だけ Docker で起動する。
 
 ## 前提
 
-- Docker Desktop（または Docker Engine + Docker Model Runner）
-- Docker Compose v2
-- Model Runner の TCP 有効化
+- Homebrew
+- Docker + Docker Compose v2（Open WebUI 用）
+- 16GB Mac では `gemma4:e4b` 推奨
+
+## セットアップ
+
+### 1. Ollama をインストール
 
 ```bash
-docker desktop enable model-runner --tcp
+brew install ollama
 ```
 
-## 起動
+### 2. Ollama を起動
 
 ```bash
-docker compose up -d
+ollama serve
 ```
 
-ブラウザで http://localhost:3000 を開き、モデル選択から `ai/gemma4:E4B`（または指定したタグ）を選ぶ。
+別ターミナルで以降を実行する。macOS では `brew services start ollama` でもよい。
+
+### 3. モデルを pull
+
+```bash
+ollama pull gemma4:e4b
+```
+
+### 4. Open WebUI を起動
+
+```bash
+docker compose up -d --remove-orphans
+```
+
+http://localhost:3000 を開き、モデル `gemma4:e4b` を選ぶ。
+
+詳細は [Ollama での起動手順](docs/ollama-setup.md) を参照。
 
 ## 停止・削除
 
 ```bash
-# 停止
-docker compose down
+# Open WebUI のみ停止（旧 compose のコンテナもまとめて削除）
+docker compose down --remove-orphans
 
 # データボリュームも削除
-docker compose down -v
+docker compose down -v --remove-orphans
 ```
+
+Ollama は別プロセスのため、必要なら `brew services stop ollama` などで停止する。
 
 ## 環境変数
 
-`.env` に書くか、起動時に指定できる。
-
 | 変数 | デフォルト | 説明 |
 |---|---|---|
-| `GEMMA4_MODEL` | `ai/gemma4:E4B` | 使用するモデルタグ |
+| `GEMMA4_MODEL` | `gemma4:e4b` | Ollama モデル名 |
+| `OLLAMA_BASE_URL` | `http://host.docker.internal:11434` | Open WebUI から見た Ollama URL |
 | `OPEN_WEBUI_PORT` | `3000` | Web UI のホスト側ポート |
 | `WEBUI_AUTH` | `false` | 認証の有効化 |
-| `WEBUI_NAME` | `Gemma 4 Local Chat` | UI に表示する名前 |
+| `WEBUI_NAME` | `Gemma 4 Local Chat` | UI 表示名 |
 
-### モデルタグ例
+### モデル例
 
-| タグ | 用途 |
+| モデル | 用途 |
 |---|---|
-| `ai/gemma4:E2B` | 最小。動作確認向き |
-| `ai/gemma4:E4B` | デフォルト。バランス型 |
-| `ai/gemma4:4B` / `ai/gemma4:4B-Q4_K_XL` | 4B 系 |
-| `ai/gemma4:26B` / `ai/gemma4:31B` | 大規模（GPU メモリ要） |
-| `ai/gemma4:latest` | 最新タグ |
+| `gemma4:e2b` | 最小。動作確認向き |
+| `gemma4:e4b` | デフォルト。16GB Mac 向け |
+| `gemma4:26b` | 大規模（16GB Mac では非推奨） |
 
-例: 軽量モデルで起動
+## ドキュメント
 
-```bash
-GEMMA4_MODEL=ai/gemma4:E2B docker compose up -d
-```
+- [Ollama での起動手順](docs/ollama-setup.md) — brew インストール、モデル選定、Colima 連携、トラブルシュート
 
 ## トラブルシュート
 
 ### モデルが UI に出てこない
 
 ```bash
-# Model Runner が応答するか
-curl http://localhost:12434/api/tags
-
-# pull 済みモデル一覧
-docker model list
+ollama list
+curl http://localhost:11434/api/tags
 ```
 
-### Connection refused
+Open WebUI の Ollama 接続 URL を `http://host.docker.internal:11434` に設定する。
 
-Model Runner の TCP が無効な可能性がある。
+### `llama-server binary not found`（Homebrew 版 Ollama 0.30.x）
+
+Ollama 0.30 以降、GGUF モデル（`gemma4:e4b` など）は `llama-server` が必要だが、Homebrew の bottle には同梱されていない。
+
+**対処（推奨）:** 公式アプリを入れて `llama-server` をリンクする。
 
 ```bash
-docker desktop enable model-runner --tcp
+# 公式 Ollama をインストール（/Applications/Ollama.app）
+curl -fsSL https://ollama.com/install.sh | sh
+
+# Homebrew 版が探すパスへ llama-server をリンク
+mkdir -p "$(brew --prefix ollama)/libexec/lib/ollama"
+ln -sf /Applications/Ollama.app/Contents/Resources/llama-server \
+  "$(brew --prefix ollama)/libexec/lib/ollama/llama-server"
+
+brew services restart ollama
 ```
 
-### 初回レスポンスが遅い
+`brew upgrade ollama` のたびにリンクの再作成が必要になる場合がある。恒久対応は [Homebrew の修正 PR](https://github.com/Homebrew/homebrew-core/pull/285963) のマージ待ち、または公式アプリのみで運用（`brew uninstall ollama` 後に `/Applications/Ollama.app` を使う）。
 
-初回リクエストはモデルをメモリに載せるため時間がかかる。2 回目以降は速くなる。
+### 推論で画面がフリーズする
+
+モデルが大きすぎる可能性がある。16GB Mac では `gemma4:e4b` を使う。
 
 ## 参考リンク
 
-- [ai/gemma4 - Docker Hub](https://hub.docker.com/r/ai/gemma4)
+- [MacBook (16GB) でGemma 4をローカル実行してみた（DevelopersIO）](https://dev.classmethod.jp/articles/run-gemma4-locally-on-macbook-with-ollama/)
+- [Ollama](https://ollama.com)
 - [Open WebUI - GitHub](https://github.com/open-webui/open-webui)
-- [Open WebUI integration - Docker Docs](https://docs.docker.com/ai/model-runner/openwebui-integration/)
